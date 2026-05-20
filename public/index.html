@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Finanças</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <style>
+        :root {
+            --bg-base: #F8F9FA; --bg-surface: #FFFFFF; --bg-surface-hover: #F3F4F6; --text-main: #111827; --text-muted: #6B7280; --border-color: #E5E7EB;
+            --brand-primary: #FF6B00; --brand-primary-hover: #E66000; --brand-primary-light: #FFF0E6;
+            --success: #10B981; --success-bg: #D1FAE5; --danger: #EF4444; --danger-bg: #FEE2E2; --info: #3B82F6;
+            --radius-sm: 8px; --radius-md: 16px; --radius-lg: 24px; --shadow-sm: 0 1px 2px 0 rgba(0,0,0,.05); --shadow-md: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -1px rgba(0,0,0,.06); --shadow-lg: 0 10px 15px -3px rgba(0,0,0,.1), 0 4px 6px -2px rgba(0,0,0,.05);
+            --nav-height: 70px; --sidebar-width: 260px; --transition: all .3s cubic-bezier(.4,0,.2,1);
+        }
+        [data-theme="dark"] {
+            --bg-base: #09090B; --bg-surface: #18181B; --bg-surface-hover: #27272A; --text-main: #F9FAFB; --text-muted: #A1A1AA; --border-color: #27272A;
+            --brand-primary-light: #431E04; --success-bg: #064E3B; --danger-bg: #7F1D1D; --shadow-sm: 0 1px 2px 0 rgba(0,0,0,.5); --shadow-md: 0 4px 6px -1px rgba(0,0,0,.5); --shadow-lg: 0 10px 15px -3px rgba(0,0,0,.5);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-base); color: var(--text-main); transition: background-color var(--transition), color var(--transition); overflow-x: hidden; }
+        button { cursor: pointer; border: none; background: none; font-family: inherit; }
+        input, select { font-family: inherit; outline: none; }
+        .app-container { display: flex; flex-direction: column; min-height: 100vh; padding-bottom: calc(var(--nav-height) + 20px); }
+        .sidebar { display: none; width: var(--sidebar-width); background-color: var(--bg-surface); border-right: 1px solid var(--border-color); padding: 24px; flex-direction: column; position: fixed; height: 100vh; z-index: 10; }
+        .main-content { flex: 1; padding: 20px; width: 100%; max-width: 1000px; margin: 0 auto; }
+        .bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; height: var(--nav-height); background-color: var(--bg-surface); border-top: 1px solid var(--border-color); display: flex; justify-content: space-around; align-items: center; z-index: 100; padding-bottom: env(safe-area-inset-bottom); box-shadow: 0 -4px 10px rgba(0,0,0,.02); transition: var(--transition); }
+        .nav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); text-decoration: none; font-size: .75rem; font-weight: 500; gap: 4px; transition: var(--transition); flex: 1; background: none; border: none; cursor: pointer; font-family: inherit; }
+        .nav-item i { font-size: 1.5rem; } .nav-item.active { color: var(--brand-primary); }
+        .fab { position: fixed; bottom: calc(var(--nav-height) + 20px); right: 20px; width: 56px; height: 56px; background-color: var(--brand-primary); color: white; border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: var(--shadow-lg); z-index: 90; transition: transform .2s, background-color .2s; }
+        .fab:hover, .fab:active { background-color: var(--brand-primary-hover); transform: scale(1.05); } .fab i { font-size: 1.5rem; font-weight: bold; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+        .greeting h1 { font-size: 1.5rem; font-weight: 600; } .greeting p { color: var(--text-muted); font-size: .875rem; margin-top: 4px; }
+        .header-actions { display: flex; gap: 12px; }
+        .icon-btn { width: 40px; height: 40px; border-radius: 50%; background-color: var(--bg-surface); border: 1px solid var(--border-color); color: var(--text-main); display: flex; justify-content: center; align-items: center; font-size: 1.2rem; transition: var(--transition); }
+        .icon-btn:hover { background-color: var(--bg-surface-hover); }
+        .card { background-color: var(--bg-surface); border-radius: var(--radius-md); padding: 20px; box-shadow: var(--shadow-sm); border: 1px solid var(--border-color); margin-bottom: 16px; transition: var(--transition); }
+        .balance-card { background: linear-gradient(135deg, var(--bg-surface) 0%, var(--bg-base) 100%); position: relative; overflow: hidden; }
+        .balance-card::after { content: ''; position: absolute; top: -50%; right: -20%; width: 200px; height: 200px; background: radial-gradient(circle, var(--brand-primary) 0%, transparent 70%); opacity: .1; border-radius: 50%; }
+        .balance-label { color: var(--text-muted); font-size: .875rem; font-weight: 500; display: flex; align-items: center; gap: 8px; }
+        .balance-amount { font-size: 2.5rem; font-weight: 700; margin: 8px 0; letter-spacing: -1px; }
+        .balance-row { display: flex; gap: 24px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color); }
+        .balance-stat { flex: 1; } .balance-stat span { display: block; font-size: .75rem; color: var(--text-muted); margin-bottom: 4px; } .balance-stat strong { font-size: 1.125rem; display: flex; align-items: center; gap: 4px; }
+        .text-success { color: var(--success); } .text-danger { color: var(--danger); }
+        .rule-container { margin-top: 8px; } .rule-bar-wrapper { height: 8px; width: 100%; background-color: var(--bg-surface-hover); border-radius: 4px; display: flex; overflow: hidden; margin: 12px 0; }
+        .rule-segment { height: 100%; transition: width .5s ease; } .rule-needs { background-color: var(--info); } .rule-wants { background-color: var(--brand-primary); } .rule-savings { background-color: var(--success); }
+        .rule-labels { display: flex; justify-content: space-between; font-size: .75rem; color: var(--text-muted); } .rule-label-item { display: flex; align-items: center; gap: 4px; } .dot { width: 8px; height: 8px; border-radius: 50%; }
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; margin-top: 24px; } .section-header h2 { font-size: 1.125rem; font-weight: 600; }
+        .transaction-item { display: flex; align-items: center; padding: 16px; background-color: var(--bg-surface); border-radius: var(--radius-md); margin-bottom: 8px; border: 1px solid var(--border-color); transition: transform .2s; }
+        .transaction-item:active { transform: scale(.98); } .tx-icon { width: 48px; height: 48px; border-radius: var(--radius-sm); display: flex; justify-content: center; align-items: center; font-size: 1.5rem; margin-right: 16px; }
+        .tx-icon.income { background-color: var(--success-bg); color: var(--success); } .tx-icon.expense { background-color: var(--danger-bg); color: var(--danger); }
+        .tx-details { flex: 1; min-width: 0; } .tx-title { font-weight: 600; font-size: 1rem; margin-bottom: 4px; } .tx-meta { font-size: .75rem; color: var(--text-muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .tx-status { padding: 2px 6px; border-radius: 4px; font-size: .65rem; font-weight: 600; text-transform: uppercase; } .status-paid { background-color: var(--success-bg); color: var(--success); } .status-pending { background-color: var(--brand-primary-light); color: var(--brand-primary); }
+        .tx-amount { font-weight: 700; font-size: 1.125rem; text-align: right; white-space: nowrap; }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,.5); backdrop-filter: blur(4px); z-index: 200; display: none; justify-content: center; align-items: flex-end; opacity: 0; transition: opacity .3s; }
+        .modal-overlay.active { display: flex; opacity: 1; } .modal-content { background-color: var(--bg-surface); width: 100%; max-width: 500px; border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: 24px; transform: translateY(100%); transition: transform .3s cubic-bezier(.4,0,.2,1); max-height: 90vh; overflow-y: auto; }
+        .modal-overlay.active .modal-content { transform: translateY(0); } .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; } .modal-header h2 { font-size: 1.25rem; }
+        .form-group { margin-bottom: 16px; } .form-group label { display: block; font-size: .875rem; color: var(--text-muted); margin-bottom: 8px; }
+        .form-control { width: 100%; padding: 14px; background-color: var(--bg-base); border: 1px solid var(--border-color); border-radius: var(--radius-sm); color: var(--text-main); font-size: 1rem; transition: border-color .2s; } .form-control:focus { border-color: var(--brand-primary); }
+        .type-selector { display: flex; gap: 12px; margin-bottom: 16px; } .type-btn { flex: 1; padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background-color: var(--bg-base); color: var(--text-muted); font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; transition: var(--transition); }
+        .type-btn.active.income { background-color: var(--success-bg); color: var(--success); border-color: var(--success); } .type-btn.active.expense { background-color: var(--danger-bg); color: var(--danger); border-color: var(--danger); }
+        .btn-primary { width: 100%; padding: 16px; background-color: var(--brand-primary); color: white; border-radius: var(--radius-sm); font-size: 1rem; font-weight: 600; margin-top: 16px; transition: background-color .2s; } .btn-primary:hover { background-color: var(--brand-primary-hover); }
+        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 300; display: flex; flex-direction: column; gap: 10px; } .toast { background-color: var(--bg-surface); border-left: 4px solid var(--success); color: var(--text-main); padding: 16px 20px; border-radius: var(--radius-sm); box-shadow: var(--shadow-lg); display: flex; align-items: center; gap: 12px; transform: translateX(120%); transition: transform .3s cubic-bezier(.4,0,.2,1); } .toast.show { transform: translateX(0); } .toast.error { border-left-color: var(--danger); }
+        .skeleton { background: linear-gradient(90deg, var(--bg-surface-hover) 25%, var(--bg-base) 50%, var(--bg-surface-hover) 75%); background-size: 200% 100%; animation: loading 1.5s infinite; border-radius: var(--radius-sm); color: transparent !important; min-height: 20px; } .skeleton * { visibility: hidden; }
+        .auth-overlay { position: fixed; inset: 0; z-index: 500; display: none; align-items: center; justify-content: center; padding: 20px; background: var(--bg-base); }
+        .auth-overlay.active { display: flex; }
+        .auth-box { width: 100%; max-width: 380px; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); padding: 24px; text-align: center; }
+        .auth-logo { width: 56px; height: 56px; margin: 0 auto 16px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; background: var(--brand-primary); font-size: 1.8rem; }
+        .auth-box h1 { font-size: 1.35rem; margin-bottom: 8px; }
+        .auth-box p { color: var(--text-muted); font-size: .9rem; margin-bottom: 20px; }
+        .auth-error { color: var(--danger); font-size: .85rem; margin-top: 14px; min-height: 18px; }
+        @keyframes loading { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+        .view { display: none; animation: fadeIn .3s ease; } .view.active { display: block; } @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @media (min-width: 768px) {
+            .app-container { flex-direction: row; padding-bottom: 0; } .sidebar { display: flex; } .bottom-nav, .fab { display: none; } .main-content { margin-left: var(--sidebar-width); padding: 40px; }
+            .modal-content { border-radius: var(--radius-md); align-self: center; transform: scale(.9); } .modal-overlay.active .modal-content { transform: scale(1); }
+            .dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; } .transactions-col { grid-column: span 2; }
+        }
+    </style>
+</head>
+<body>
+    <section class="auth-overlay active" id="auth-overlay">
+        <section class="auth-box">
+            <section class="auth-logo"><i class="ph-fill ph-wallet"></i></section>
+            <h1>Entrar no Hubly</h1>
+            <p>Use sua conta Google para acessar suas finanças.</p>
+            <section id="google-login-button"></section>
+            <section class="auth-error" id="auth-error"></section>
+        </section>
+    </section>
+    <aside class="sidebar">
+        <section style="font-size: 1.5rem; font-weight: 700; color: var(--brand-primary); margin-bottom: 40px; display: flex; align-items: center; gap: 8px;"><i class="ph-fill ph-wallet"></i> Hubly</section>
+        <nav style="display: flex; flex-direction: column; gap: 16px;">
+            <button type="button" class="nav-item active" data-view="dashboard" style="flex-direction: row; justify-content: flex-start;" onclick="switchView('dashboard')"><i class="ph ph-squares-four"></i> <span style="font-size: 1rem;">Dashboard</span></button>
+            <button type="button" class="nav-item" data-view="transactions" style="flex-direction: row; justify-content: flex-start;" onclick="switchView('transactions')"><i class="ph ph-list-dashes"></i> <span style="font-size: 1rem;">Transações</span></button>
+            <button type="button" class="nav-item" data-view="goals" style="flex-direction: row; justify-content: flex-start;" onclick="switchView('goals')"><i class="ph ph-chart-line-up"></i> <span style="font-size: 1rem;">Metas</span></button>
+            <button type="button" class="nav-item" data-view="profile" style="flex-direction: row; justify-content: flex-start;" onclick="switchView('profile')"><i class="ph ph-user"></i> <span style="font-size: 1rem;">Perfil</span></button>
+            <button type="button" class="nav-item" style="flex-direction: row; justify-content: flex-start;" onclick="openModal()"><i class="ph ph-plus-circle"></i> <span style="font-size: 1rem;">Nova Conta</span></button>
+        </nav>
+    </aside>
+
+    <section class="app-container">
+        <main class="main-content">
+            <header class="header">
+                <section class="greeting">
+                    <h1 class="skeleton" id="user-greeting">Olá, Carregando...</h1>
+                    <p class="skeleton" id="date-display">Carregando data...</p>
+                </section>
+                <section class="header-actions">
+                    <button class="icon-btn" onclick="toggleTheme()" aria-label="Alternar Tema"><i class="ph ph-moon" id="theme-icon"></i></button>
+                    <button class="icon-btn" aria-label="Notificações"><i class="ph ph-bell"></i></button>
+                </section>
+            </header>
+
+            <section id="views">
+                <section id="view-dashboard" class="view active dashboard-grid">
+                    <section class="card balance-card">
+                        <section class="balance-label">Saldo Atual <i class="ph ph-eye" style="cursor:pointer"></i></section>
+                        <section class="balance-amount skeleton" id="total-balance">R$ 0,00</section>
+                        <section class="balance-row">
+                            <section class="balance-stat"><span>Receitas</span><strong class="text-success skeleton" id="total-income"><i class="ph ph-arrow-up-right"></i> R$ 0,00</strong></section>
+                            <section class="balance-stat"><span>Despesas</span><strong class="text-danger skeleton" id="total-expense"><i class="ph ph-arrow-down-right"></i> R$ 0,00</strong></section>
+                        </section>
+                    </section>
+
+                    <section class="card">
+                        <h3 style="font-size: 1rem; margin-bottom: 8px;">Saúde Financeira (50-30-20)</h3>
+                        <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 16px;">Baseado nas suas receitas deste mês.</p>
+                        <section class="rule-container skeleton" id="rule-container">
+                            <section class="rule-labels" style="margin-bottom: 8px;"><span>Gasto: <span id="rule-spent-pct">0</span>%</span><span>Ideal: 80%</span></section>
+                            <section class="rule-bar-wrapper"><span class="rule-segment rule-needs" id="bar-needs" style="width: 0%"></span><span class="rule-segment rule-wants" id="bar-wants" style="width: 0%"></span></section>
+                            <section class="rule-labels" style="margin-top: 12px;"><span class="rule-label-item"><span class="dot rule-needs"></span> Necessidades (50%)</span><span class="rule-label-item"><span class="dot rule-wants"></span> Desejos (30%)</span><span class="rule-label-item"><span class="dot rule-savings"></span> Reserva (20%)</span></section>
+                        </section>
+                    </section>
+
+                    <section class="card transactions-col" style="height: 300px;">
+                        <h3 style="font-size: 1rem; margin-bottom: 16px;">Despesas por Categoria</h3>
+                        <section style="height: 220px; position: relative;"><canvas id="expenseChart"></canvas></section>
+                    </section>
+
+                    <section class="transactions-col">
+                        <section class="section-header"><h2>Transações Recentes</h2><button style="color: var(--brand-primary); font-size: 0.875rem; font-weight: 500;" onclick="switchView('transactions')">Ver todas</button></section>
+                        <section id="recent-transactions-list"><section class="skeleton" style="height: 80px; margin-bottom: 8px; border-radius: var(--radius-md);"></section><section class="skeleton" style="height: 80px; margin-bottom: 8px; border-radius: var(--radius-md);"></section></section>
+                    </section>
+                </section>
+
+                <section id="view-transactions" class="view">
+                    <section class="card" style="margin-bottom: 24px;"><input type="text" class="form-control" id="tx-search" placeholder="Buscar transação..." style="background-color: var(--bg-base); border: none;"></section>
+                    <section class="section-header">
+                        <h2>Todas as Transações</h2>
+                        <select class="form-control" id="tx-period" style="width: auto; padding: 8px 12px; background-color: var(--bg-base); border: none;"><option value="current">Este Mês</option><option value="previous">Mês Passado</option><option value="all">Todas</option></select>
+                    </section>
+                    <section id="all-transactions-list"></section>
+                </section>
+
+                <section id="view-goals" class="view">
+                    <section class="section-header" style="margin-top: 0;"><h2>Minhas Metas</h2><button class="icon-btn" onclick="showToast('Em breve: Adicionar nova meta')" aria-label="Nova Meta"><i class="ph ph-plus"></i></button></section>
+                    <section id="goals-list">
+                        <section class="skeleton" style="height: 104px; margin-bottom: 16px; border-radius: var(--radius-md);"></section>
+                        <section class="skeleton" style="height: 104px; margin-bottom: 16px; border-radius: var(--radius-md);"></section>
+                    </section>
+                </section>
+
+                <section id="view-profile" class="view">
+                    <section class="section-header" style="margin-top: 0;"><h2>Meu Perfil</h2></section>
+                    <section class="card" style="display: flex; align-items: center; gap: 16px;"><section id="profile-initials" style="width: 64px; height: 64px; border-radius: 50%; background-color: var(--brand-primary-light); color: var(--brand-primary); display: flex; justify-content: center; align-items: center; font-size: 2rem; font-weight: bold;">--</section><section><h3 id="profile-name" style="font-size: 1.125rem;">Carregando...</h3><p id="profile-email" style="color: var(--text-muted); font-size: 0.875rem;"></p></section></section>
+                    <section class="card" style="padding: 0;"><ul style="list-style: none;"><li style="padding: 16px 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; cursor: pointer;" onclick="showToast('Configurações em breve')"><span style="display: flex; align-items: center; gap: 12px; font-weight: 500;"><i class="ph ph-gear" style="font-size: 1.2rem;"></i> Configurações da Conta</span><i class="ph ph-caret-right" style="color: var(--text-muted);"></i></li><li style="padding: 16px 20px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; cursor: pointer;" onclick="showToast('Notificações em breve')"><span style="display: flex; align-items: center; gap: 12px; font-weight: 500;"><i class="ph ph-bell" style="font-size: 1.2rem;"></i> Preferências de Notificação</span><i class="ph ph-caret-right" style="color: var(--text-muted);"></i></li><li style="padding: 16px 20px; display: flex; justify-content: space-between; cursor: pointer; color: var(--danger);" onclick="logout()"><span style="display: flex; align-items: center; gap: 12px; font-weight: 500;"><i class="ph ph-sign-out" style="font-size: 1.2rem;"></i> Sair do App</span></li></ul></section>
+                </section>
+            </section>
+        </main>
+    </section>
+
+    <nav class="bottom-nav">
+        <button type="button" class="nav-item active" data-view="dashboard" onclick="switchView('dashboard')"><i class="ph ph-squares-four"></i><span>Início</span></button>
+        <button type="button" class="nav-item" data-view="transactions" onclick="switchView('transactions')"><i class="ph ph-list-dashes"></i><span>Contas</span></button>
+        <section style="width: 50px;"></section>
+        <button type="button" class="nav-item" data-view="goals" onclick="switchView('goals')"><i class="ph ph-chart-line-up"></i><span>Metas</span></button>
+        <button type="button" class="nav-item" data-view="profile" onclick="switchView('profile')"><i class="ph ph-user"></i><span>Perfil</span></button>
+    </nav>
+
+    <button class="fab" onclick="openModal()" aria-label="Adicionar Transação"><i class="ph ph-plus"></i></button>
+
+    <section class="modal-overlay" id="tx-modal" onclick="closeModal(event)">
+        <section class="modal-content" onclick="event.stopPropagation()">
+            <section class="modal-header"><h2>Nova Transação</h2><button class="icon-btn" onclick="closeModal()" style="border:none; background:none;"><i class="ph ph-x"></i></button></section>
+            <form id="tx-form" onsubmit="handleFormSubmit(event)">
+                <section class="type-selector"><button type="button" class="type-btn expense active" onclick="setTxType('expense')" id="btn-type-expense"><i class="ph ph-arrow-down-right"></i> Despesa</button><button type="button" class="type-btn income" onclick="setTxType('income')" id="btn-type-income"><i class="ph ph-arrow-up-right"></i> Receita</button></section>
+                <input type="hidden" id="tx-type" value="expense">
+                <section class="form-group"><label>Valor (R$)</label><input type="number" step="0.01" class="form-control" id="tx-amount" placeholder="0,00" required style="font-size: 1.5rem; font-weight: bold; color: var(--brand-primary);"></section>
+                <section class="form-group"><label>Descrição</label><input type="text" class="form-control" id="tx-title" placeholder="Ex: Conta de Luz" required></section>
+                <section class="form-group" style="display: flex; gap: 16px;"><section style="flex: 1;"><label>Categoria</label><select class="form-control" id="tx-category" required><option value="Moradia">Moradia</option><option value="Alimentação">Alimentação</option><option value="Transporte">Transporte</option><option value="Assinaturas">Assinaturas</option><option value="Salário">Salário</option><option value="Outros">Outros</option></select></section><section style="flex: 1;"><label>Data</label><input type="date" class="form-control" id="tx-date" required></section></section>
+                <section class="form-group"><label>Status</label><select class="form-control" id="tx-status"><option value="paid">Pago / Recebido</option><option value="pending">Pendente</option></select></section>
+                <button type="submit" class="btn-primary">Salvar Transação</button>
+            </form>
+        </section>
+    </section>
+
+    <section class="toast-container" id="toast-container"></section>
+
+    <script>
+        let authToken = localStorage.getItem('hubly_token') || '';
+
+        const api = {
+            async get(path) {
+                const response = await fetch(path, {
+                    headers: authToken ? { Authorization: `Bearer ${authToken}` } : {}
+                });
+                if (!response.ok) throw new Error('Falha ao carregar dados.');
+                return response.json();
+            },
+            async post(path, data) {
+                const response = await fetch(path, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+                    },
+                    body: JSON.stringify(data)
+                });
+                const body = await response.json().catch(() => ({}));
+                if (!response.ok) throw new Error(body.message || 'Falha ao salvar dados.');
+                return body;
+            }
+        };
+
+        const initialState = {
+            user: { name: 'Usuário', email: '' },
+            theme: localStorage.getItem('hubly_theme') || 'light',
+            transactions: [],
+            summary: { incomes: 0, expenses: 0, balance: 0, expensesByCategory: [] },
+            goals: []
+        };
+
+        const stateListeners = [];
+        const state = new Proxy(initialState, {
+            set(target, property, value) {
+                target[property] = value;
+                stateListeners.forEach(listener => listener(property, value));
+                return true;
+            }
+        });
+
+        function subscribe(listener) { stateListeners.push(listener); }
+        let chartInstance = null;
+        let searchTimer = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            applyTheme(state.theme);
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById('date-display').textContent = new Date().toLocaleDateString('pt-BR', options);
+            document.getElementById('tx-date').value = new Date().toISOString().split('T')[0];
+
+            subscribe((property, value) => {
+                if (property === 'transactions') renderTransactions();
+                if (property === 'goals') renderGoals();
+                if (property === 'summary') {
+                    updateDashboardMetrics();
+                    updateChart();
+                }
+                if (property === 'user') renderUser(value);
+                if (property === 'theme') {
+                    applyTheme(value);
+                    if (chartInstance) updateChart();
+                }
+            });
+
+            document.getElementById('tx-search').addEventListener('input', () => {
+                clearTimeout(searchTimer);
+                searchTimer = setTimeout(loadTransactions, 300);
+            });
+            document.getElementById('tx-period').addEventListener('change', loadTransactions);
+
+            initAuth();
+        });
+
+        async function initAuth() {
+            try {
+                const config = await api.get('/api/config');
+                setupGoogleLogin(config.googleClientId);
+
+                if (authToken) {
+                    await loadAppData();
+                    hideLogin();
+                } else {
+                    showLogin();
+                    removeSkeletons();
+                }
+            } catch (error) {
+                showLogin('Não foi possível iniciar o login.');
+                removeSkeletons();
+            }
+        }
+
+        function setupGoogleLogin(clientId) {
+            if (!clientId || clientId.includes('cole_aqui')) {
+                showLogin('Configure GOOGLE_CLIENT_ID no arquivo .env e reinicie o servidor.');
+                return;
+            }
+
+            const render = () => {
+                if (!window.google) {
+                    setTimeout(render, 100);
+                    return;
+                }
+
+                google.accounts.id.initialize({
+                    client_id: clientId,
+                    callback: handleGoogleCredential
+                });
+                google.accounts.id.renderButton(document.getElementById('google-login-button'), {
+                    theme: 'outline',
+                    size: 'large',
+                    width: 300,
+                    text: 'signin_with',
+                    locale: 'pt-BR'
+                });
+            };
+
+            render();
+        }
+
+        async function handleGoogleCredential(response) {
+            try {
+                const data = await api.post('/api/auth/google', { credential: response.credential });
+                authToken = data.token;
+                localStorage.setItem('hubly_token', authToken);
+                state.user = data.user;
+                await loadAppData();
+                hideLogin();
+                showToast('Login realizado com sucesso!');
+            } catch (error) {
+                showLogin(error.message);
+            }
+        }
+
+        function showLogin(message = '') {
+            document.getElementById('auth-overlay').classList.add('active');
+            document.getElementById('auth-error').textContent = message;
+        }
+
+        function hideLogin() {
+            document.getElementById('auth-overlay').classList.remove('active');
+            document.getElementById('auth-error').textContent = '';
+        }
+
+        function logout() {
+            authToken = '';
+            localStorage.removeItem('hubly_token');
+            state.transactions = [];
+            state.goals = [];
+            state.summary = { incomes: 0, expenses: 0, balance: 0, expensesByCategory: [] };
+            showLogin();
+        }
+
+        async function loadAppData() {
+            try {
+                const [user, transactions, summary, goals] = await Promise.all([
+                    api.get('/api/user'),
+                    api.get('/api/transactions'),
+                    api.get('/api/summary'),
+                    api.get('/api/goals')
+                ]);
+                state.user = user;
+                state.transactions = transactions;
+                state.summary = summary;
+                state.goals = goals;
+                removeSkeletons();
+            } catch (error) {
+                removeSkeletons();
+                authToken = '';
+                localStorage.removeItem('hubly_token');
+                showLogin('Faça login para continuar.');
+            }
+        }
+
+        async function loadTransactions() {
+            try {
+                const search = encodeURIComponent(document.getElementById('tx-search').value.trim());
+                const period = encodeURIComponent(document.getElementById('tx-period').value);
+                state.transactions = await api.get(`/api/transactions?period=${period}&search=${search}`);
+            } catch (error) {
+                showToast(error.message, true);
+            }
+        }
+
+        async function loadSummary() {
+            state.summary = await api.get('/api/summary');
+        }
+
+        function removeSkeletons() {
+            document.querySelectorAll('.skeleton').forEach(el => el.classList.remove('skeleton'));
+        }
+
+        function renderUser(user) {
+            document.getElementById('user-greeting').textContent = `Olá, ${user.name}`;
+            document.getElementById('profile-name').textContent = user.name;
+            document.getElementById('profile-email').textContent = user.email || '';
+            document.getElementById('profile-initials').textContent = user.name.split(' ').map(part => part[0]).join('').slice(0, 2).toUpperCase();
+        }
+
+        const formatCurrency = value => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value || 0));
+
+        function updateDashboardMetrics() {
+            const { incomes, expenses, balance } = state.summary;
+            document.getElementById('total-balance').textContent = formatCurrency(balance);
+            document.getElementById('total-income').innerHTML = `<i class="ph ph-arrow-up-right"></i> ${formatCurrency(incomes)}`;
+            document.getElementById('total-expense').innerHTML = `<i class="ph ph-arrow-down-right"></i> ${formatCurrency(expenses)}`;
+
+            if (incomes > 0) {
+                const expensePct = (expenses / incomes) * 100;
+                document.getElementById('rule-spent-pct').textContent = expensePct.toFixed(0);
+                const needs = state.summary.expensesByCategory.filter(t => ['Moradia', 'Alimentação', 'Transporte'].includes(t.category)).reduce((acc, t) => acc + Number(t.total), 0);
+                const wants = state.summary.expensesByCategory.filter(t => ['Assinaturas', 'Outros'].includes(t.category)).reduce((acc, t) => acc + Number(t.total), 0);
+                document.getElementById('bar-needs').style.width = `${Math.min((needs / incomes) * 100, 50)}%`;
+                document.getElementById('bar-wants').style.width = `${Math.min((wants / incomes) * 100, 30)}%`;
+            } else {
+                document.getElementById('rule-spent-pct').textContent = '0';
+                document.getElementById('bar-needs').style.width = '0%';
+                document.getElementById('bar-wants').style.width = '0%';
+            }
+        }
+
+        function renderTransactions() {
+            const createTxHTML = tx => `
+                <section class="transaction-item">
+                    <section class="tx-icon ${tx.type}"><i class="ph ${getCategoryIcon(tx.category)}"></i></section>
+                    <section class="tx-details">
+                        <section class="tx-title">${escapeHTML(tx.title)}</section>
+                        <section class="tx-meta"><span>${new Date(tx.date + 'T00:00:00').toLocaleDateString('pt-BR')}</span> • <span>${escapeHTML(tx.category)}</span><span class="tx-status status-${tx.status}">${tx.status === 'paid' ? 'Pago' : 'Pendente'}</span></section>
+                    </section>
+                    <section class="tx-amount ${tx.type === 'income' ? 'text-success' : ''}">${tx.type === 'income' ? '+' : '-'} ${formatCurrency(tx.amount)}</section>
+                </section>`;
+
+            const sorted = [...state.transactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+            const empty = '<p style="color:var(--text-muted); text-align:center; padding: 20px;">Nenhuma transação.</p>';
+            document.getElementById('recent-transactions-list').innerHTML = sorted.slice(0, 4).map(createTxHTML).join('') || empty;
+            document.getElementById('all-transactions-list').innerHTML = sorted.map(createTxHTML).join('') || empty;
+        }
+
+        function renderGoals() {
+            const html = state.goals.map(goal => {
+                const pct = goal.targetAmount > 0 ? Math.min((goal.currentAmount / goal.targetAmount) * 100, 100) : 0;
+                const barClass = goal.category === 'Lazer' ? 'rule-wants' : 'rule-savings';
+                return `
+                    <section class="card">
+                        <section style="display: flex; justify-content: space-between; margin-bottom: 8px; gap: 12px;">
+                            <strong style="font-size: 1rem;">${escapeHTML(goal.title)}</strong>
+                            <span style="font-size: 0.875rem; color: var(--text-muted); white-space: nowrap;">${formatCurrency(goal.currentAmount)} / ${formatCurrency(goal.targetAmount)}</span>
+                        </section>
+                        <section class="rule-bar-wrapper"><span class="rule-segment ${barClass}" style="width: ${pct}%"></span></section>
+                        <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">${pct.toFixed(0)}% concluído</p>
+                    </section>`;
+            }).join('');
+
+            document.getElementById('goals-list').innerHTML = html || '<p style="color:var(--text-muted); text-align:center; padding: 20px;">Nenhuma meta cadastrada.</p>';
+        }
+
+        function getCategoryIcon(category) {
+            const icons = { 'Moradia': 'ph-house', 'Alimentação': 'ph-shopping-cart', 'Transporte': 'ph-car', 'Assinaturas': 'ph-play-circle', 'Salário': 'ph-money', 'Outros': 'ph-receipt' };
+            return icons[category] || 'ph-receipt';
+        }
+
+        function updateChart() {
+            const ctx = document.getElementById('expenseChart').getContext('2d');
+            const labels = state.summary.expensesByCategory.map(item => item.category);
+            const values = state.summary.expensesByCategory.map(item => item.total);
+            const isDark = state.theme === 'dark';
+            const textColor = isDark ? '#A1A1AA' : '#6B7280';
+            if (chartInstance) chartInstance.destroy();
+            chartInstance = new Chart(ctx, {
+                type: 'doughnut',
+                data: { labels, datasets: [{ data: values, backgroundColor: ['#FF6B00', '#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', '#EF4444'], borderWidth: 2, borderColor: isDark ? '#18181B' : '#FFFFFF' }] },
+                options: { responsive: true, maintainAspectRatio: false, cutout: '75%', plugins: { legend: { position: 'right', labels: { color: textColor, font: { family: 'Inter' } } } } }
+            });
+        }
+
+        function switchView(viewName) {
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+            const selectedView = document.getElementById(`view-${viewName}`);
+            if (selectedView) selectedView.classList.add('active');
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.querySelectorAll(`.nav-item[data-view="${viewName}"]`).forEach(n => {
+                n.classList.add('active');
+                n.style.transform = 'scale(0.85)';
+                setTimeout(() => { n.style.transform = 'scale(1)'; }, 150);
+            });
+        }
+
+        function openModal() { document.getElementById('tx-modal').classList.add('active'); }
+        function closeModal(e) {
+            if (e && e.target.id !== 'tx-modal') return;
+            document.getElementById('tx-modal').classList.remove('active');
+        }
+
+        function setTxType(type) {
+            document.getElementById('tx-type').value = type;
+            document.getElementById('btn-type-expense').classList.remove('active');
+            document.getElementById('btn-type-income').classList.remove('active');
+            document.getElementById(`btn-type-${type}`).classList.add('active');
+        }
+
+        async function handleFormSubmit(e) {
+            e.preventDefault();
+            const submitButton = e.target.querySelector('button[type="submit"]');
+            submitButton.disabled = true;
+            submitButton.textContent = 'Salvando...';
+
+            const newTx = {
+                title: document.getElementById('tx-title').value,
+                amount: parseFloat(document.getElementById('tx-amount').value),
+                type: document.getElementById('tx-type').value,
+                category: document.getElementById('tx-category').value,
+                date: document.getElementById('tx-date').value,
+                status: document.getElementById('tx-status').value
+            };
+
+            try {
+                await api.post('/api/transactions', newTx);
+                await Promise.all([loadTransactions(), loadSummary()]);
+                closeModal();
+                e.target.reset();
+                setTxType('expense');
+                document.getElementById('tx-date').value = new Date().toISOString().split('T')[0];
+                showToast('Transação salva com sucesso!');
+            } catch (error) {
+                showToast(error.message, true);
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = 'Salvar Transação';
+            }
+        }
+
+        function toggleTheme() {
+            state.theme = state.theme === 'dark' ? 'light' : 'dark';
+            localStorage.setItem('hubly_theme', state.theme);
+        }
+
+        function applyTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            const icon = document.getElementById('theme-icon');
+            if (theme === 'dark') { icon.classList.remove('ph-moon'); icon.classList.add('ph-sun'); }
+            else { icon.classList.remove('ph-sun'); icon.classList.add('ph-moon'); }
+        }
+
+        function showToast(message, isError = false) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('article');
+            toast.className = `toast${isError ? ' error' : ''}`;
+            toast.innerHTML = `<i class="ph ${isError ? 'ph-warning-circle' : 'ph-check-circle'}" style="color: var(${isError ? '--danger' : '--success'}); font-size: 1.25rem;"></i> <span>${escapeHTML(message)}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => toast.classList.add('show'), 10);
+            setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 3000);
+        }
+
+        function escapeHTML(value) {
+            return String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[char]));
+        }
+    </script>
+</body>
+</html>
