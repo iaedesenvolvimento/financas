@@ -83,9 +83,11 @@ function isValidTransaction(body) {
 
 app.get('/api/health', async (_req, res) => {
   try {
-    await pool.query('SELECT 1');
+    const [rows] = await pool.query('SELECT 1');
+    console.log('✓ Health check: Banco de dados conectado');
     res.json({ ok: true, database: 'connected' });
-  } catch {
+  } catch (error) {
+    console.error('✗ Health check: Banco de dados indisponível', error.message);
     res.status(500).json({ ok: false, message: 'Banco de dados indisponível.' });
   }
 });
@@ -96,19 +98,26 @@ app.get('/api/config', (_req, res) => {
 
 app.post('/api/auth/google', async (req, res, next) => {
   try {
+    console.log('📌 POST /api/auth/google recebido');
+    
     if (!googleClientId) {
+      console.error('❌ GOOGLE_CLIENT_ID não configurado');
       return res.status(500).json({ message: 'GOOGLE_CLIENT_ID não configurado no .env.' });
     }
 
     const { credential } = req.body;
     if (!credential) {
+      console.error('❌ Credencial do Google não enviada');
       return res.status(400).json({ message: 'Credencial do Google não enviada.' });
     }
 
+    console.log('🔐 Verificando token do Google...');
     const ticket = await googleClient.verifyIdToken({
       idToken: credential,
       audience: googleClientId
     });
+    console.log('✓ Token verificado com sucesso');
+    
     const googleUser = ticket.getPayload();
 
     const user = {
@@ -118,6 +127,9 @@ app.post('/api/auth/google', async (req, res, next) => {
       picture: googleUser.picture || null
     };
 
+    console.log('👤 Usuário do Google:', user.email);
+    console.log('🔍 Procurando usuário no banco de dados...');
+    
     const [existing] = await pool.query(
       'SELECT id FROM users WHERE google_id = ? OR email = ? LIMIT 1',
       [user.googleId, user.email]
@@ -125,12 +137,14 @@ app.post('/api/auth/google', async (req, res, next) => {
 
     let userId;
     if (existing.length) {
+      console.log('✓ Usuário encontrado, atualizando...');
       userId = existing[0].id;
       await pool.execute(
         'UPDATE users SET google_id = ?, name = ?, email = ?, picture = ? WHERE id = ?',
         [user.googleId, user.name, user.email, user.picture, userId]
       );
     } else {
+      console.log('✓ Novo usuário, criando...');
       const [result] = await pool.execute(
         'INSERT INTO users (google_id, name, email, picture) VALUES (?, ?, ?, ?)',
         [user.googleId, user.name, user.email, user.picture]
@@ -138,11 +152,14 @@ app.post('/api/auth/google', async (req, res, next) => {
       userId = result.insertId;
     }
 
+    console.log('✓ Login realizado com sucesso. User ID:', userId);
     res.json({
       token: sessionToken(userId),
       user: { id: userId, name: user.name, email: user.email, picture: user.picture }
     });
   } catch (error) {
+    console.error('❌ Erro em /api/auth/google:', error.message);
+    console.error('Stack:', error.stack);
     next(error);
   }
 });
@@ -286,8 +303,10 @@ app.get('/api/goals', requireAuth, async (req, res, next) => {
 });
 
 app.use((error, _req, res, _next) => {
-  console.error(error);
-  res.status(500).json({ message: 'Erro interno no servidor.' });
+  console.error('💥 ERRO NÃO TRATADO:');
+  console.error('  Mensagem:', error.message);
+  console.error('  Stack:', error.stack);
+  res.status(500).json({ message: 'Erro interno no servidor.', error: error.message });
 });
 
 app.listen(port, () => {
