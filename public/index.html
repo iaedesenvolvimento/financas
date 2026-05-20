@@ -279,6 +279,7 @@
         async function initAuth() {
             try {
                 const config = await api.get('/api/config');
+                console.log('✓ Config carregada:', config);
                 setupGoogleLogin(config.googleClientId);
 
                 if (authToken) {
@@ -289,12 +290,14 @@
                     removeSkeletons();
                 }
             } catch (error) {
-                showLogin('Não foi possível iniciar o login.');
+                console.error('✗ Erro ao carregar config:', error);
+                showLogin('Não foi possível iniciar o login. Verifique a conexão com o servidor.');
                 removeSkeletons();
             }
         }
 
         function setupGoogleLogin(clientId) {
+            console.log('setupGoogleLogin chamado com clientId:', clientId?.substring(0, 20) + '...');
             if (!clientId || clientId.includes('cole_aqui')) {
                 showLogin('Configure GOOGLE_CLIENT_ID no arquivo .env e reinicie o servidor.');
                 return;
@@ -302,10 +305,12 @@
 
             const render = () => {
                 if (!window.google) {
+                    console.log('Aguardando Google API...');
                     setTimeout(render, 100);
                     return;
                 }
 
+                console.log('✓ Google API carregada, inicializando...');
                 google.accounts.id.initialize({
                     client_id: clientId,
                     callback: handleGoogleCredential
@@ -317,6 +322,7 @@
                     text: 'signin_with',
                     locale: 'pt-BR'
                 });
+                console.log('✓ Botão Google renderizado com sucesso');
             };
 
             render();
