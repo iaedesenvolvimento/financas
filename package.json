@@ -8,6 +8,7 @@
     "dev": "node --watch server.js"
   },
   "dependencies": {
+    "@phosphor-icons/web": "^2.1.2",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "google-auth-library": "^10.6.2",
