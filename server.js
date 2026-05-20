@@ -10,6 +10,13 @@ const app = express();
 const port = Number(process.env.PORT || 3000);
 const googleClientId = process.env.GOOGLE_CLIENT_ID || '';
 const jwtSecret = process.env.JWT_SECRET || 'troque-este-segredo';
+
+console.log('🔍 Variáveis de Ambiente Carregadas:');
+console.log('- PORT:', process.env.PORT);
+console.log('- GOOGLE_CLIENT_ID:', googleClientId ? '✓ Configurado' : '✗ Vazio');
+console.log('- DB_HOST:', process.env.DB_HOST);
+console.log('- NODE_ENV:', process.env.NODE_ENV);
+
 const googleClient = new OAuth2Client(googleClientId);
 
 const pool = mysql.createPool({
