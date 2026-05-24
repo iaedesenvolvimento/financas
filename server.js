@@ -2,7 +2,7 @@ require('dotenv').config();
 
 const path = require('path');
 const express = require('express');
-const mysql = require('mysql2/promise');
+const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 
@@ -19,16 +19,12 @@ console.log('- NODE_ENV:', process.env.NODE_ENV);
 
 const googleClient = new OAuth2Client(googleClientId);
 
-const pool = mysql.createPool({
+const pool = new Pool({
   host: process.env.DB_HOST || 'localhost',
-  port: Number(process.env.DB_PORT || 3306),
+  port: Number(process.env.DB_PORT || 5432),
   user: process.env.DB_USER || 'root',
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'financas_hubly',
-  waitForConnections: true,
-  connectionLimit: 10,
-  decimalNumbers: true,
-  dateStrings: true
 });
 
 app.use(express.json());
@@ -83,7 +79,7 @@ function isValidTransaction(body) {
 
 app.get('/api/health', async (_req, res) => {
   try {
-    const [rows] = await pool.query('SELECT 1');
+    await pool.query('SELECT 1');
     console.log('✓ Health check: Banco de dados conectado');
     res.json({ ok: true, database: 'connected' });
   } catch (error) {
@@ -130,26 +126,26 @@ app.post('/api/auth/google', async (req, res, next) => {
     console.log('👤 Usuário do Google:', user.email);
     console.log('🔍 Procurando usuário no banco de dados...');
     
-    const [existing] = await pool.query(
-      'SELECT id FROM users WHERE google_id = ? OR email = ? LIMIT 1',
+    const checkUser = await pool.query(
+      'SELECT id FROM users WHERE google_id = $1 OR email = $2 LIMIT 1',
       [user.googleId, user.email]
     );
 
     let userId;
-    if (existing.length) {
+    if (checkUser.rows.length) {
       console.log('✓ Usuário encontrado, atualizando...');
-      userId = existing[0].id;
-      await pool.execute(
-        'UPDATE users SET google_id = ?, name = ?, email = ?, picture = ? WHERE id = ?',
+      userId = checkUser.rows[0].id;
+      await pool.query(
+        'UPDATE users SET google_id = $1, name = $2, email = $3, picture = $4 WHERE id = $5',
         [user.googleId, user.name, user.email, user.picture, userId]
       );
     } else {
       console.log('✓ Novo usuário, criando...');
-      const [result] = await pool.execute(
-        'INSERT INTO users (google_id, name, email, picture) VALUES (?, ?, ?, ?)',
+      const result = await pool.query(
+        'INSERT INTO users (google_id, name, email, picture) VALUES ($1, $2, $3, $4) RETURNING id',
         [user.googleId, user.name, user.email, user.picture]
       );
-      userId = result.insertId;
+      userId = result.rows[0].id;
     }
 
     console.log('✓ Login realizado com sucesso. User ID:', userId);
@@ -166,16 +162,16 @@ app.post('/api/auth/google', async (req, res, next) => {
 
 app.get('/api/user', requireAuth, async (req, res, next) => {
   try {
-    const [rows] = await pool.query(
-      'SELECT id, name, email, picture FROM users WHERE id = ? LIMIT 1',
+    const result = await pool.query(
+      'SELECT id, name, email, picture FROM users WHERE id = $1 LIMIT 1',
       [req.userId]
     );
 
-    if (!rows.length) {
+    if (!result.rows.length) {
       return res.status(404).json({ message: 'Usuário não encontrado.' });
     }
 
-    res.json(rows[0]);
+    res.json(result.rows[0]);
   } catch (error) {
     next(error);
   }
@@ -186,28 +182,27 @@ app.get('/api/transactions', requireAuth, async (req, res, next) => {
     const search = String(req.query.search || '').trim();
     const period = String(req.query.period || 'current');
     const params = [req.userId];
-    let where = 'WHERE user_id = ?';
+    let where = 'WHERE user_id = $1';
+    let paramCount = 2;
 
     if (search) {
-      where += ' AND (title LIKE ? OR category LIKE ?)';
+      where += ` AND (title ILIKE $${paramCount} OR category ILIKE $${paramCount + 1})`;
       params.push(`%${search}%`, `%${search}%`);
+      paramCount += 2;
     }
 
     if (period === 'current') {
-      where += ' AND YEAR(transaction_date) = YEAR(CURDATE()) AND MONTH(transaction_date) = MONTH(CURDATE())';
+      where += ` AND DATE_TRUNC('month', transaction_date) = DATE_TRUNC('month', CURRENT_DATE)`;
     } else if (period === 'previous') {
-      where += ' AND YEAR(transaction_date) = YEAR(CURDATE() - INTERVAL 1 MONTH) AND MONTH(transaction_date) = MONTH(CURDATE() - INTERVAL 1 MONTH)';
+      where += ` AND DATE_TRUNC('month', transaction_date) = DATE_TRUNC('month', CURRENT_DATE - INTERVAL '1 month')`;
     }
 
-    const [rows] = await pool.query(
-      `SELECT id, title, amount, type, category, transaction_date, status
-       FROM transactions
-       ${where}
-       ORDER BY transaction_date DESC, id DESC`,
+    const result = await pool.query(
+      `SELECT id, title, amount, type, category, transaction_date, status FROM transactions ${where} ORDER BY transaction_date DESC`,
       params
     );
 
-    res.json(rows.map(mapTransaction));
+    res.json(result.rows.map(mapTransaction));
   } catch (error) {
     next(error);
   }
@@ -216,65 +211,72 @@ app.get('/api/transactions', requireAuth, async (req, res, next) => {
 app.post('/api/transactions', requireAuth, async (req, res, next) => {
   try {
     if (!isValidTransaction(req.body)) {
-      return res.status(400).json({ message: 'Dados da transação inválidos.' });
+      return res.status(400).json({ message: 'Dados inválidos.' });
     }
 
-    const tx = {
-      title: req.body.title.trim(),
-      amount: Number(req.body.amount),
-      type: req.body.type,
-      category: req.body.category.trim(),
-      date: req.body.date,
-      status: req.body.status || 'paid'
-    };
-
-    const [result] = await pool.execute(
-      `INSERT INTO transactions
-        (user_id, title, amount, type, category, transaction_date, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [req.userId, tx.title, tx.amount, tx.type, tx.category, tx.date, tx.status]
+    const { title, amount, type, category, date, status } = req.body;
+    const result = await pool.query(
+      'INSERT INTO transactions (user_id, title, amount, type, category, transaction_date, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+      [req.userId, title, amount, type, category, date, status || 'paid']
     );
 
-    res.status(201).json({ id: result.insertId, ...tx });
+    res.status(201).json(mapTransaction(result.rows[0]));
   } catch (error) {
     next(error);
   }
 });
 
-app.get('/api/summary', requireAuth, async (req, res, next) => {
+app.get('/api/transactions/:id', requireAuth, async (req, res, next) => {
   try {
-    const [totals] = await pool.query(
-      `SELECT
-        COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) AS incomes,
-        COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) AS expenses
-       FROM transactions
-       WHERE user_id = ?
-         AND YEAR(transaction_date) = YEAR(CURDATE())
-         AND MONTH(transaction_date) = MONTH(CURDATE())`,
-      [req.userId]
+    const result = await pool.query(
+      'SELECT * FROM transactions WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.userId]
     );
 
-    const [categories] = await pool.query(
-      `SELECT category, COALESCE(SUM(amount), 0) AS total
-       FROM transactions
-       WHERE user_id = ?
-         AND type = 'expense'
-         AND YEAR(transaction_date) = YEAR(CURDATE())
-         AND MONTH(transaction_date) = MONTH(CURDATE())
-       GROUP BY category
-       ORDER BY total DESC`,
-      [req.userId]
+    if (!result.rows.length) {
+      return res.status(404).json({ message: 'Transação não encontrada.' });
+    }
+
+    res.json(mapTransaction(result.rows[0]));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.put('/api/transactions/:id', requireAuth, async (req, res, next) => {
+  try {
+    if (!isValidTransaction(req.body)) {
+      return res.status(400).json({ message: 'Dados inválidos.' });
+    }
+
+    const { title, amount, type, category, date, status } = req.body;
+    const result = await pool.query(
+      'UPDATE transactions SET title = $1, amount = $2, type = $3, category = $4, transaction_date = $5, status = $6 WHERE id = $7 AND user_id = $8 RETURNING *',
+      [title, amount, type, category, date, status, req.params.id, req.userId]
     );
 
-    res.json({
-      incomes: Number(totals[0].incomes),
-      expenses: Number(totals[0].expenses),
-      balance: Number(totals[0].incomes) - Number(totals[0].expenses),
-      expensesByCategory: categories.map(row => ({
-        category: row.category,
-        total: Number(row.total)
-      }))
-    });
+    if (!result.rows.length) {
+      return res.status(404).json({ message: 'Transação não encontrada.' });
+    }
+
+    res.json(mapTransaction(result.rows[0]));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.delete('/api/transactions/:id', requireAuth, async (req, res, next) => {
+  try {
+    const result = await pool.query(
+      'DELETE FROM transactions WHERE id = $1 AND user_id = $2',
+      [req.params.id, req.userId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: 'Transação não encontrada.' });
+    }
+
+    res.json({ message: 'Transação deletada.' });
   } catch (error) {
     next(error);
   }
@@ -282,15 +284,15 @@ app.get('/api/summary', requireAuth, async (req, res, next) => {
 
 app.get('/api/goals', requireAuth, async (req, res, next) => {
   try {
-    const [rows] = await pool.query(
+    const result = await pool.query(
       `SELECT id, title, current_amount, target_amount, category
        FROM goals
-       WHERE user_id = ?
+       WHERE user_id = $1
        ORDER BY id DESC`,
       [req.userId]
     );
 
-    res.json(rows.map(row => ({
+    res.json(result.rows.map(row => ({
       id: row.id,
       title: row.title,
       currentAmount: Number(row.current_amount),
